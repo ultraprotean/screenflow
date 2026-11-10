@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ScreenFlow.Api/ScreenFlow.Api.csproj" />
+    <Project Path="src/ScreenFlow.Domain/ScreenFlow.Domain.csproj" />
+    <Project Path="src/ScreenFlow.Infrastructure/ScreenFlow.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ScreenFlow.IntegrationTests/ScreenFlow.IntegrationTests.csproj" />
+    <Project Path="tests/ScreenFlow.UnitTests/ScreenFlow.UnitTests.csproj" />
+  </Folder>
+</Solution>

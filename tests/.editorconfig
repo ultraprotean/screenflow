@@ -1,0 +1,3 @@
+# Test projects only: underscore_separated names read as sentences in test output.
+[*.cs]
+dotnet_diagnostic.CA1707.severity = none
