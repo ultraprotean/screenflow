@@ -20,6 +20,17 @@ public sealed class Order
     public DateTimeOffset SubmittedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
 
+    public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>
+    /// Optimistic concurrency token, incremented by every operation. Because it always changes, any
+    /// change to the aggregate (even one that only touches a search) updates the order row, so two
+    /// requests racing on different searches of the same order are caught (write skew). A timestamp
+    /// can't do this job: two requests in the same clock tick would write the same value, and EF Core
+    /// skips an UPDATE when nothing changed.
+    /// </summary>
+    public int Version { get; private set; }
+
     public Candidate Candidate { get; private set; } = null!;
     public Package Package { get; private set; } = null!;
     public IReadOnlyList<Search> Searches => _searches;
@@ -46,6 +57,8 @@ public sealed class Order
             ClientReference = clientReference.Trim(),
             Status = OrderStatus.Submitted,
             SubmittedAt = now,
+            UpdatedAt = now,
+            Version = 1,
         };
 
         foreach (var type in package.SearchTypes.Select(t => t.SearchType))
@@ -62,6 +75,7 @@ public sealed class Order
         var search = FindSearch(searchId);
         var from = search.Status;
         search.Start(now);
+        Touch(now);
         AuditSearch(search, from, actor, now);
 
         if (Status == OrderStatus.Submitted)
@@ -75,6 +89,7 @@ public sealed class Order
         var search = FindSearch(searchId);
         var from = search.Status;
         search.Complete(result, now);
+        Touch(now);
         AuditSearch(search, from, actor, now);
 
         var remaining = _searches.Where(s => s.Status != SearchStatus.Cancelled).ToList();
@@ -104,6 +119,7 @@ public sealed class Order
 
         Result = decision;
         CompletedAt = now;
+        Touch(now);
         ChangeStatus(OrderStatus.Completed, reviewer, now, AuditActions.OrderReviewed);
     }
 
@@ -121,7 +137,14 @@ public sealed class Order
             AuditSearch(search, from, actor, now);
         }
 
+        Touch(now);
         ChangeStatus(OrderStatus.Cancelled, actor, now, AuditActions.OrderCancelled);
+    }
+
+    private void Touch(DateTimeOffset now)
+    {
+        UpdatedAt = now;
+        Version++;
     }
 
     private static string? JurisdictionFor(SearchType type, Candidate candidate) => type switch

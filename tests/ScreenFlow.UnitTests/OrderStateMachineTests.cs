@@ -150,6 +150,20 @@ public class OrderStateMachineTests
             order.Searches.Select(s => s.Status));
     }
 
+    [Fact]
+    public void Every_operation_increments_Version_even_when_only_a_search_changes()
+    {
+        var order = Place(SearchType.CriminalCounty, SearchType.DrugTest);
+        order.StartSearch(order.Searches[0].Id, Actors.Operator, Now);
+        var before = order.Version;
+
+        // Order status stays InProgress here; only the second search changes.
+        order.StartSearch(order.Searches[1].Id, Actors.Operator, Now);
+
+        Assert.Equal(OrderStatus.InProgress, order.Status);
+        Assert.Equal(before + 1, order.Version);
+    }
+
     // ---- Forbidden transitions -----------------------------------------------------------------
 
     [Fact]
@@ -228,9 +242,11 @@ public class OrderStateMachineTests
         var statusBefore = order.Status;
         var searchesBefore = order.Searches.Select(s => s.Status).ToList();
         var auditBefore = order.AuditEvents.Count;
+        var versionBefore = order.Version;
 
         Assert.Throws<InvalidTransitionException>(() => act(order));
 
+        Assert.Equal(versionBefore, order.Version);
         Assert.Equal(statusBefore, order.Status);
         Assert.Equal(searchesBefore, order.Searches.Select(s => s.Status));
         Assert.Equal(auditBefore, order.AuditEvents.Count);
