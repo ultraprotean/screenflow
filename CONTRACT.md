@@ -26,7 +26,7 @@ The project is complete when all of the following hold:
 - Base path: `/api/v1` for every endpoint in §6 except the health check (`GET /health`).
 - JSON everywhere, camelCase property names. Enums serialize as strings (`"InProgress"`, not `2`).
 - Timestamps are UTC, ISO 8601 (`DateTimeOffset` in C#, `datetimeoffset` in SQL Server).
-- Identifiers are GUIDs (`Guid.CreateVersion7()`, which is time-ordered and so index-friendly).
+- Identifiers are GUIDs from `Guid.CreateVersion7()`. They are time-ordered in .NET and in Postgres, but **not** in SQL Server, which sorts `uniqueidentifier` by its last six bytes first. So they do not prevent clustered-index page splits here; at this scale that is acceptable (see docs/AI_WORKFLOW.md, unit 2).
 - Authentication: none in units 1–4 (the API runs locally only). Unit 7 adds an API key per client. This is a deliberate, documented gap, not an oversight.
 
 ### Error envelope
@@ -51,7 +51,7 @@ Validation errors add an `errors` object (field name → messages), as ASP.NET C
 | `VALIDATION_FAILED` | 400 | The request body or query fails validation |
 | `NOT_FOUND` | 404 | The client, package, order or search does not exist (or the search is not on that order) |
 | `INVALID_TRANSITION` | 409 | The state machine (§5) forbids the requested change |
-| `CONCURRENCY_CONFLICT` | 409 | The row changed since it was read (`rowversion` mismatch) |
+| `CONCURRENCY_CONFLICT` | 409 | The order changed since it was read (`Version` mismatch); the client re-reads and retries |
 | `INTERNAL_ERROR` | 500 | Anything unexpected; the response never includes exception details |
 
 ## 3. Sensitive data rules
@@ -72,15 +72,15 @@ Validation errors add an `errors` object (field name → messages), as ASP.NET C
 | `Packages` | Catalog of screening packages (seeded) | `Id`, `Code` (unique), `Name` |
 | `PackageSearchTypes` | Which search types a package contains | `PackageId`, `SearchType` (composite PK) |
 | `Candidates` | The person being screened | `Id`, `FirstName`, `LastName`, `Email`, `SsnEncrypted`, `SsnLast4`, `DateOfBirthEncrypted`, `State`, `County`, `CreatedAt` |
-| `Orders` | One screening request | `Id`, `ClientId`, `CandidateId`, `PackageId`, `ClientReference`, `Status`, `Result`, `SubmittedAt`, `CompletedAt`, `RowVersion` |
-| `Searches` | One unit of screening work | `Id`, `OrderId`, `Type`, `Jurisdiction`, `Status`, `Result`, `CreatedAt`, `StartedAt`, `CompletedAt`, `RowVersion` |
+| `Orders` | One screening request | `Id`, `ClientId`, `CandidateId`, `PackageId`, `ClientReference`, `Status`, `Result`, `SubmittedAt`, `CompletedAt`, `UpdatedAt`, `Version` |
+| `Searches` | One unit of screening work | `Id`, `OrderId`, `Type`, `Jurisdiction`, `Status`, `Result`, `CreatedAt`, `StartedAt`, `CompletedAt` |
 | `AuditEvents` | Append-only history | `Id` (bigint identity), `OrderId`, `SearchId` (nullable), `Action`, `FromStatus`, `ToStatus`, `Actor`, `OccurredAt` |
 
 - Unique index on `Orders (ClientId, ClientReference)`: this is what makes order creation idempotent.
-- Index on `Orders (ClientId, Status, SubmittedAt, Id)` for the list endpoint's filter and keyset paging.
+- Indexes on `Orders (ClientId, SubmittedAt DESC, Id DESC)` and `Orders (ClientId, Status, SubmittedAt DESC, Id DESC)` for the list endpoint, with and without the status filter, matching its keyset order.
 - Index on `Searches (OrderId)`, `Searches (Status, Type)` (operations queue), `AuditEvents (OrderId, Id)`.
 - Status and type enums are stored as strings (`nvarchar(32)`) so raw SQL and the warehouse export are readable.
-- `RowVersion` (`rowversion`) on `Orders` and `Searches` is EF Core's concurrency token.
+- `Orders.Version` (`int`) is EF Core's concurrency token, and the only one. The order is the aggregate root, and every operation increments `Version`, so even a change that only touches a search updates the order row (`UPDATE … WHERE Version = @original`). Without that, two requests completing the last two searches of one order at the same time would each see the other search still in progress, and the order would stay `InProgress` forever (write skew). With it, the second save fails with `CONCURRENCY_CONFLICT`.
 
 **Enums**
 
