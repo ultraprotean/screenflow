@@ -81,6 +81,20 @@ public sealed class PersistenceTests(DatabaseFixture fixture)
     }
 
     [Fact]
+    public async Task Database_rejects_a_duplicate_package_code()
+    {
+        // Orders select a package by code, so two packages with one code would make that lookup ambiguous.
+        await using var db = fixture.CreateContext();
+        db.Packages.Add(Package.Create(Guid.NewGuid(), "STANDARD", "Impostor", SearchType.DrugTest));
+
+        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+
+        var sql = Assert.IsType<SqlException>(ex.InnerException);
+        Assert.Equal(2601, sql.Number);
+        Assert.Contains("IX_Packages_Code", sql.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Concurrent_completion_of_the_last_two_searches_is_detected()
     {
         // Arrange: an order with two searches, both in progress.
