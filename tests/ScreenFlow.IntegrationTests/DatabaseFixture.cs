@@ -36,8 +36,17 @@ public sealed class DatabaseFixture : IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
+    private ApiFactory? _api;
+
+    /// <summary>The in-memory API host, created on first use and shared by the API tests.</summary>
+    public ApiFactory Api => _api ??= new ApiFactory(this);
+
     public async Task DisposeAsync()
     {
+        if (_api is not null)
+        {
+            await _api.DisposeAsync();
+        }
         await using var db = CreateContext();
         await db.Database.EnsureDeletedAsync();
     }
