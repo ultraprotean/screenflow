@@ -39,4 +39,10 @@ dotnet user-secrets set "Encryption:Key" "$(openssl rand -base64 32)" --project 
 dotnet run --project src/ScreenFlow.Api   # http://localhost:5129
 ```
 
+Set the key once. Running `set` again replaces it, and rows encrypted under the old key can no longer be read: AES-GCM rejects them with `AuthenticationTagMismatchException` (a 500, never wrong data). The local database holds only synthetic data, so the fix is to drop it and let startup recreate it:
+
+```bash
+sqlcmd -S "(localdb)\MSSQLLocalDB" -Q "DROP DATABASE ScreenFlow"
+```
+
 `src/ScreenFlow.Api/ScreenFlow.Api.http` has a request for every endpoint.
