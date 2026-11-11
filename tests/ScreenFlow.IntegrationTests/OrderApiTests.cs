@@ -262,17 +262,32 @@ public sealed class OrderApiTests(DatabaseFixture fixture) : ApiTestBase(fixture
 
     // ---- 6.10 Review ------------------------------------------------------------------------------
 
-    [Fact]
-    public async Task A_Consider_finding_goes_to_review_and_the_reviewer_decides()
+    [Theory]
+    [InlineData("Confirm", ScreeningResult.Consider)]
+    [InlineData("Dismiss", ScreeningResult.Clear)]
+    public async Task A_Consider_finding_goes_to_review_and_verification_sets_the_reported_result(
+        string decision, ScreeningResult reported)
     {
         var order = await PlaceOrderAsync(packageCode: "STANDARD");
         order = await CompleteAllAsync(order, "Clear", "Consider", "Clear");
         Assert.Equal(OrderStatus.ReadyForReview, order.Status);
 
-        var reviewed = await PostOk($"/api/v1/orders/{order.Id}/review", new { decision = "Consider", reviewer = "j.walker" });
+        var reviewed = await PostOk($"/api/v1/orders/{order.Id}/review", new { decision, reviewer = "j.walker" });
 
         Assert.Equal(OrderStatus.Completed, reviewed.Status);
-        Assert.Equal(ScreeningResult.Consider, reviewed.Result);
+        Assert.Equal(reported, reviewed.Result);
+    }
+
+    [Fact]
+    public async Task Review_with_a_report_result_instead_of_a_decision_is_VALIDATION_FAILED()
+    {
+        var order = await PlaceOrderAsync(packageCode: "STANDARD");
+        order = await CompleteAllAsync(order, "Clear", "Consider", "Clear");
+
+        // "Clear" is a ScreeningResult (what the report says), not a ReviewDecision.
+        var response = await Http.PostAsJsonAsync($"/api/v1/orders/{order.Id}/review", new { decision = "Clear", reviewer = "j.walker" });
+
+        await AssertProblem(response, HttpStatusCode.BadRequest, "VALIDATION_FAILED");
     }
 
     [Fact]
@@ -280,7 +295,7 @@ public sealed class OrderApiTests(DatabaseFixture fixture) : ApiTestBase(fixture
     {
         var order = await PlaceOrderAsync();
 
-        var response = await Http.PostAsJsonAsync($"/api/v1/orders/{order.Id}/review", new { decision = "Clear", reviewer = "j.walker" });
+        var response = await Http.PostAsJsonAsync($"/api/v1/orders/{order.Id}/review", new { decision = "Dismiss", reviewer = "j.walker" });
 
         await AssertProblem(response, HttpStatusCode.Conflict, "INVALID_TRANSITION");
     }
@@ -290,7 +305,7 @@ public sealed class OrderApiTests(DatabaseFixture fixture) : ApiTestBase(fixture
     {
         var order = await PlaceOrderAsync();
 
-        var response = await Http.PostAsJsonAsync($"/api/v1/orders/{order.Id}/review", new { decision = "Clear" });
+        var response = await Http.PostAsJsonAsync($"/api/v1/orders/{order.Id}/review", new { decision = "Confirm" });
 
         await AssertProblem(response, HttpStatusCode.BadRequest, "VALIDATION_FAILED");
     }
@@ -317,7 +332,7 @@ public sealed class OrderApiTests(DatabaseFixture fixture) : ApiTestBase(fixture
     {
         var order = await PlaceOrderAsync(packageCode: "STANDARD");
         order = await CompleteAllAsync(order, "Consider", "Clear", "Clear");
-        await PostOk($"/api/v1/orders/{order.Id}/review", new { decision = "Clear", reviewer = "j.walker" });
+        await PostOk($"/api/v1/orders/{order.Id}/review", new { decision = "Dismiss", reviewer = "j.walker" });
 
         var audit = await Http.GetFromJsonAsync<List<AuditEventResponse>>($"/api/v1/orders/{order.Id}/audit", Json);
 

@@ -89,7 +89,7 @@ public static partial class RequestValidator
         var errors = new Errors();
         if (request.Decision is null)
         {
-            errors.Add("decision", "Decision is required (Clear or Consider).");
+            errors.Add("decision", "Decision is required (Confirm or Dismiss).");
         }
         errors.RequireLength("reviewer", request.Reviewer, 100);
         return errors.Result;

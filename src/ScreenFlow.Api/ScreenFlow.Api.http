@@ -51,11 +51,11 @@ Content-Type: application/json
 
 { "result": "Consider" }
 
-### Review (only from ReadyForReview)
+### Verify the findings (only from ReadyForReview). Confirm -> reported as Consider; Dismiss -> Clear
 POST {{base}}/api/v1/orders/{{orderId}}/review
 Content-Type: application/json
 
-{ "decision": "Clear", "reviewer": "j.walker" }
+{ "decision": "Confirm", "reviewer": "j.walker" }
 
 ### Cancel
 POST {{base}}/api/v1/orders/{{orderId}}/cancel

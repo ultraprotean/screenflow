@@ -110,14 +110,19 @@ public sealed class Order
         }
     }
 
-    public void Review(ScreeningResult decision, string reviewer, DateTimeOffset now)
+    /// <summary>Verifies the findings: Confirm reports the order as Consider, Dismiss as Clear.</summary>
+    /// <remarks>
+    /// Search results are kept as returned, so a dismissed order can hold a search marked Consider:
+    /// the search records what was found, the order records what is reported.
+    /// </remarks>
+    public void Review(ReviewDecision decision, string reviewer, DateTimeOffset now)
     {
         if (Status != OrderStatus.ReadyForReview)
         {
             throw new InvalidTransitionException($"Order {Id} cannot be reviewed from {Status}.");
         }
 
-        Result = decision;
+        Result = decision == ReviewDecision.Confirm ? ScreeningResult.Consider : ScreeningResult.Clear;
         CompletedAt = now;
         Touch(now);
         ChangeStatus(OrderStatus.Completed, reviewer, now, AuditActions.OrderReviewed);

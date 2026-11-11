@@ -107,9 +107,9 @@ public class OrderStateMachineTests
     }
 
     [Theory]
-    [InlineData(ScreeningResult.Clear)]
-    [InlineData(ScreeningResult.Consider)]
-    public void Review_completes_the_order_with_the_reviewers_decision(ScreeningResult decision)
+    [InlineData(ReviewDecision.Confirm, ScreeningResult.Consider)]
+    [InlineData(ReviewDecision.Dismiss, ScreeningResult.Clear)]
+    public void Review_verifies_the_findings_and_completes_the_order(ReviewDecision decision, ScreeningResult reported)
     {
         var order = Place();
         CompleteAll(order, ScreeningResult.Clear, ScreeningResult.Consider);
@@ -117,7 +117,8 @@ public class OrderStateMachineTests
         order.Review(decision, "j.walker", Now.AddDays(1));
 
         Assert.Equal(OrderStatus.Completed, order.Status);
-        Assert.Equal(decision, order.Result);
+        Assert.Equal(reported, order.Result);
+        Assert.Equal(ScreeningResult.Consider, order.Searches[1].Result); // the search keeps what was found
         Assert.Equal(Now.AddDays(1), order.CompletedAt);
         var last = order.AuditEvents[^1];
         Assert.Equal((AuditActions.OrderReviewed, "j.walker"), (last.Action, last.Actor));
@@ -212,7 +213,7 @@ public class OrderStateMachineTests
     {
         var order = OrderIn(status);
 
-        AssertForbidden(order, o => o.Review(ScreeningResult.Clear, "j.walker", Now));
+        AssertForbidden(order, o => o.Review(ReviewDecision.Dismiss, "j.walker", Now));
     }
 
     [Theory]

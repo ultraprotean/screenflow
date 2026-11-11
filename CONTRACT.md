@@ -88,6 +88,7 @@ Validation errors add an `errors` object (field name → messages), as ASP.NET C
 - `SearchType`: `CriminalCounty`, `CriminalFederal`, `MotorVehicleRecord`, `DrugTest`, `EmploymentVerification`, `EducationVerification`
 - `OrderStatus`: `Submitted`, `InProgress`, `ReadyForReview`, `Completed`, `Cancelled`
 - `SearchStatus`: `Pending`, `InProgress`, `Completed`, `Cancelled`
+- `ReviewDecision`: `Confirm`, `Dismiss` (see §5, review)
 - `ScreeningResult`: `Clear`, `Consider` (FCRA vocabulary: "consider" means a finding the employer must review, not a failure). Stored in the `Result` columns and returned in the `result` fields.
 
 **Seeded packages**
@@ -119,11 +120,17 @@ Pending ──start──▶ InProgress ──complete(result)──▶ Complete
 - `Submitted` → `InProgress` automatically when its first search starts.
 - `InProgress` → `Completed` (result `Clear`) automatically when every non-cancelled search is `Completed` with `Clear`.
 - `InProgress` → `ReadyForReview` automatically when every non-cancelled search is `Completed` and at least one is `Consider`.
-- `ReadyForReview` → `Completed` through a reviewer decision (`Clear` or `Consider`).
+- `ReadyForReview` → `Completed` through a reviewer's verification of the findings (§6.10): `Confirm` reports the order as `Consider`; `Dismiss` reports it as `Clear`.
 - `Submitted` or `InProgress` → `Cancelled` on request; this cancels every search not yet `Completed`.
 - `Completed` and `Cancelled` are terminal.
 
 Each transition, automatic or requested, writes one `AuditEvents` row.
+
+**What review is, and isn't.** Review is the screening company's own verification before a finding is reported: is it really this candidate (identifiers match), and is it reportable at all (FCRA limits, e.g. most non-conviction records older than seven years)? FCRA requires reasonable procedures for maximum possible accuracy; this is that step. It is **not** the employer's hiring decision. ScreenFlow reports; the employer adjudicates (eligible or not) and runs any adverse-action process. Employer adjudication is out of scope.
+
+Search results are kept as returned: a dismissed order can still hold a search marked `Consider`. The search records what was found; the order's `Result` records what is reported.
+
+Review is order-level for now. Real verification is usually per finding (one hit confirmed, another dismissed); per-search review is the natural next step.
 
 ## 6. Endpoints
 
@@ -186,7 +193,7 @@ Body `{ "result": "Clear" | "Consider" }` → `200` order. Illegal → `INVALID_
 *(6.8 and 6.9 are the operator endpoints for unit 3. Unit 5's vendor webhook calls the same domain operations.)*
 
 ### 6.10 `POST /api/v1/orders/{orderId}/review`
-Body `{ "decision": "Clear" | "Consider", "reviewer": string }` → `200` order. Only from `ReadyForReview`.
+Body `{ "decision": "Confirm" | "Dismiss", "reviewer": string }` → `200` order. Only from `ReadyForReview`, otherwise `INVALID_TRANSITION`. `Confirm` completes the order with `result: "Consider"`; `Dismiss` with `result: "Clear"`. A report value (`"Clear"`/`"Consider"`) as the decision, or a missing reviewer → `VALIDATION_FAILED`.
 
 ### 6.11 `POST /api/v1/orders/{orderId}/cancel`
 → `200` order. Only from `Submitted` or `InProgress`.

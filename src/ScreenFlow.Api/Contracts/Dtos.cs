@@ -25,7 +25,7 @@ public sealed record CreateOrderRequest(Guid? ClientId, string? PackageCode, str
 
 public sealed record CompleteSearchRequest(ScreeningResult? Result);
 
-public sealed record ReviewRequest(ScreeningResult? Decision, string? Reviewer);
+public sealed record ReviewRequest(ReviewDecision? Decision, string? Reviewer);
 
 /// <summary>Never carries the SSN or date of birth: only <see cref="SsnMasked"/>.</summary>
 public sealed record CandidateResponse(
