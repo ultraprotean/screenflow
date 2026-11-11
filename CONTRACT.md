@@ -153,7 +153,8 @@ Body `{ "name": string (1–200), "industry": Industry }` → `201` with the cli
 }
 ```
 - New → `201` with the order (§6.6 shape) and `Location`.
-- Same `clientId` + `clientReference` already exists → `200` with the existing order (idempotent replay; the body is not compared).
+- Same `clientId` + `clientReference` already exists → `200` with the existing order (idempotent replay). The status code tells the client which happened: `201` created, `200` already existed.
+- **The replay body is not compared.** Reusing a reference with a different package or candidate silently returns the original order. This is a deliberate simplification: retries of the same request (the case idempotency exists for) behave correctly, and the rule is easy to explain. The stricter design, used by payment APIs with an `Idempotency-Key`, stores a hash of the original request and answers a reused key with a different body with `409`/`422`, which surfaces client bugs instead of hiding them. It would need a request-hash column and a new error code.
 - Unknown client or package → `NOT_FOUND`. Bad SSN format (`NNN-NN-NNNN` or 9 digits), future DOB, candidate under 14, missing fields, `clientReference` over 64 chars → `VALIDATION_FAILED`.
 
 ### 6.6 `GET /api/v1/orders/{orderId}`
