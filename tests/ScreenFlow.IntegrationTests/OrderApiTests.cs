@@ -152,6 +152,36 @@ public sealed class OrderApiTests(DatabaseFixture fixture) : ApiTestBase(fixture
         Assert.Null(page.NextCursor);
     }
 
+    [Fact]
+    public async Task List_finds_an_order_by_client_reference()
+    {
+        var clientId = await CreateClientAsync();
+        var target = await Read<OrderResponse>(await PostOrderAsync(clientId, reference: "REQ-10442"));
+        await PostOrderAsync(clientId, reference: "REQ-10443");
+
+        var found = await Http.GetFromJsonAsync<OrderPageResponse>(
+            $"/api/v1/orders?clientId={clientId}&clientReference=%20req-10442%20", Json); // trimmed, any case
+
+        Assert.Equal([target.Id], found!.Items.Select(o => o.Id));
+        Assert.Equal("REQ-10442", found.Items[0].ClientReference);
+    }
+
+    [Fact]
+    public async Task List_by_unknown_or_other_clients_reference_is_an_empty_page()
+    {
+        var clientId = await CreateClientAsync();
+        await PostOrderAsync(clientId, reference: "REQ-MINE");
+        var otherClient = await CreateClientAsync();
+
+        var unknown = await Http.GetFromJsonAsync<OrderPageResponse>(
+            $"/api/v1/orders?clientId={clientId}&clientReference=REQ-NOPE", Json);
+        var otherClients = await Http.GetFromJsonAsync<OrderPageResponse>(
+            $"/api/v1/orders?clientId={otherClient}&clientReference=REQ-MINE", Json);
+
+        Assert.Empty(unknown!.Items);
+        Assert.Empty(otherClients!.Items); // references are scoped to the client
+    }
+
     [Theory]
     [InlineData("")]                                   // missing clientId
     [InlineData("clientId=not-a-guid")]
@@ -159,6 +189,8 @@ public sealed class OrderApiTests(DatabaseFixture fixture) : ApiTestBase(fixture
     [InlineData("clientId={client}&limit=101")]
     [InlineData("clientId={client}&status=Pending")]   // a search status, not an order status
     [InlineData("clientId={client}&cursor=garbage!")]
+    [InlineData("clientId={client}&clientReference=")]
+    [InlineData("clientId={client}&clientReference=RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")] // 65 chars
     public async Task Bad_list_parameters_are_VALIDATION_FAILED(string query)
     {
         var response = await Http.GetAsync("/api/v1/orders?" + query.Replace("{client}", Guid.NewGuid().ToString(), StringComparison.Ordinal));

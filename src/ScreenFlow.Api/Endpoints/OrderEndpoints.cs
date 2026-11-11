@@ -112,7 +112,8 @@ public static class OrderEndpoints
     }
 
     private static async Task<IResult> ListOrders(
-        string? clientId, string? status, string? limit, string? cursor, ScreenFlowDbContext db, CancellationToken ct)
+        string? clientId, string? status, string? clientReference, string? limit, string? cursor,
+        ScreenFlowDbContext db, CancellationToken ct)
     {
         // Query parameters are bound as strings and parsed here, so a bad value produces the
         // contract's VALIDATION_FAILED shape rather than the framework's default 400.
@@ -128,6 +129,13 @@ public static class OrderEndpoints
                 return ApiProblems.Validation("status", "Unknown status.");
             }
             statusFilter = parsed;
+        }
+        // Look up an order by the client's own id (e.g. "where is REQ-10442?"). Exact match after
+        // trimming; case-insensitive under SQL Server's default collation, like the unique index.
+        var reference = clientReference?.Trim();
+        if (clientReference is not null && (reference!.Length == 0 || reference.Length > 64))
+        {
+            return ApiProblems.Validation("clientReference", "clientReference must be 1 to 64 characters.");
         }
         var pageSize = DefaultLimit;
         if (limit is not null && (!int.TryParse(limit, out pageSize) || pageSize is < 1 or > MaxLimit))
@@ -148,6 +156,10 @@ public static class OrderEndpoints
         if (statusFilter is { } s)
         {
             query = query.Where(o => o.Status == s);
+        }
+        if (reference is not null)
+        {
+            query = query.Where(o => o.ClientReference == reference); // served by the unique index
         }
         if (after is { } a)
         {

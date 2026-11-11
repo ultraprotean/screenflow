@@ -169,11 +169,12 @@ Body `{ "name": string (1–200), "industry": Industry }` → `201` with the cli
 }
 ```
 
-### 6.7 `GET /api/v1/orders?clientId=&status=&limit=&cursor=`
+### 6.7 `GET /api/v1/orders?clientId=&status=&clientReference=&limit=&cursor=`
 - `clientId` required; `status` optional; `limit` 1–100, default 25.
+- `clientReference` optional: finds the client's order by the client's own id (exact match after trimming, case-insensitive, 1–64 chars). Returns a page of zero or one item; a reference belonging to another client is not found.
 - Newest first by `(submittedAt, id)`. Response `{ "items": [order summary], "nextCursor": string|null }`; the cursor is opaque (base64url).
 - Order summary = §6.6 without `candidate` and `searches`, plus `candidateName`.
-- Bad cursor or limit → `VALIDATION_FAILED`.
+- Missing or malformed `clientId`, unknown `status`, bad `cursor`, `limit` or `clientReference` → `VALIDATION_FAILED`.
 
 ### 6.8 `POST /api/v1/orders/{orderId}/searches/{searchId}/start`
 → `200` order (§6.6). Illegal → `INVALID_TRANSITION`.

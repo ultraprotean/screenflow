@@ -39,6 +39,9 @@ GET {{base}}/api/v1/orders/{{orderId}}
 ### List a client's orders (newest first, keyset paging)
 GET {{base}}/api/v1/orders?clientId={{clientId}}&limit=2
 
+### Find an order by the client's own reference
+GET {{base}}/api/v1/orders?clientId={{clientId}}&clientReference=REQ-10442
+
 ### Start a search
 POST {{base}}/api/v1/orders/{{orderId}}/searches/{{searchId}}/start
 
