@@ -1,0 +1,61 @@
+### ScreenFlow manual requests. In Visual Studio, click "Send request" above each one.
+### Run the API first: dotnet run --project src/ScreenFlow.Api  (http://localhost:5129)
+### Copy ids from responses into the variables below as you go.
+
+@base = http://localhost:5129
+@clientId = 00000000-0000-0000-0000-000000000000
+@orderId = 00000000-0000-0000-0000-000000000000
+@searchId = 00000000-0000-0000-0000-000000000000
+
+### Health
+GET {{base}}/health
+
+### Packages
+GET {{base}}/api/v1/packages
+
+### Create a client
+POST {{base}}/api/v1/clients
+Content-Type: application/json
+
+{ "name": "Desert Freight Lines", "industry": "Transportation" }
+
+### Place an order (send twice: the second returns 200 with the same order)
+POST {{base}}/api/v1/orders
+Content-Type: application/json
+
+{
+  "clientId": "{{clientId}}",
+  "packageCode": "DOT_DRIVER",
+  "clientReference": "REQ-10442",
+  "candidate": {
+    "firstName": "Dana", "lastName": "Reyes", "email": "dana@example.com",
+    "ssn": "900-12-3456", "dateOfBirth": "1990-04-02", "state": "AZ", "county": "Maricopa"
+  }
+}
+
+### Get the order
+GET {{base}}/api/v1/orders/{{orderId}}
+
+### List a client's orders (newest first, keyset paging)
+GET {{base}}/api/v1/orders?clientId={{clientId}}&limit=2
+
+### Start a search
+POST {{base}}/api/v1/orders/{{orderId}}/searches/{{searchId}}/start
+
+### Complete a search
+POST {{base}}/api/v1/orders/{{orderId}}/searches/{{searchId}}/complete
+Content-Type: application/json
+
+{ "result": "Consider" }
+
+### Review (only from ReadyForReview)
+POST {{base}}/api/v1/orders/{{orderId}}/review
+Content-Type: application/json
+
+{ "decision": "Clear", "reviewer": "j.walker" }
+
+### Cancel
+POST {{base}}/api/v1/orders/{{orderId}}/cancel
+
+### Audit trail
+GET {{base}}/api/v1/orders/{{orderId}}/audit

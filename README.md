@@ -27,6 +27,14 @@ Read the history in order with `git log --reverse`.
 Requires the .NET 10 SDK and SQL Server (LocalDB ships with Visual Studio and SQL Server Express).
 
 ```bash
-dotnet test
-dotnet run --project src/ScreenFlow.Api
+dotnet test                       # creates and drops a throwaway LocalDB database
 ```
+
+The API needs a 32-byte encryption key for SSN and date-of-birth columns. Generate one into user-secrets (never into source control), then run; in Development the database is created and migrated on startup:
+
+```bash
+dotnet user-secrets set "Encryption:Key" "$(openssl rand -base64 32)" --project src/ScreenFlow.Api
+dotnet run --project src/ScreenFlow.Api   # http://localhost:5129
+```
+
+`src/ScreenFlow.Api/ScreenFlow.Api.http` has a request for every endpoint.

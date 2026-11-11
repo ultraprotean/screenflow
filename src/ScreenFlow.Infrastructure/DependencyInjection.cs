@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ScreenFlow.Infrastructure.Encryption;
 using ScreenFlow.Infrastructure.Persistence;
@@ -8,13 +9,25 @@ namespace ScreenFlow.Infrastructure;
 
 public static class DependencyInjection
 {
-    /// <summary>Registers the DbContext and the field encryptor. The API supplies the values from configuration.</summary>
-    public static IServiceCollection AddScreenFlowInfrastructure(
-        this IServiceCollection services, string connectionString, string? base64EncryptionKey)
+    public const string ConnectionStringName = "ScreenFlow";
+    public const string EncryptionKeySetting = "Encryption:Key";
+
+    /// <summary>
+    /// Registers the DbContext and the field encryptor. Configuration is read when the services are
+    /// first resolved, not here, so a test host can override it. The API resolves the encryptor
+    /// right after building the app to fail fast on a missing key.
+    /// </summary>
+    public static IServiceCollection AddScreenFlowInfrastructure(this IServiceCollection services)
     {
-        // Fail at startup, not on the first request that touches a candidate.
-        services.AddSingleton(FieldEncryptor.FromBase64(base64EncryptionKey));
-        services.AddDbContext<ScreenFlowDbContext>(options => options.UseSqlServer(connectionString));
+        services.AddSingleton(sp =>
+            FieldEncryptor.FromBase64(sp.GetRequiredService<IConfiguration>()[EncryptionKeySetting]));
+
+        services.AddDbContext<ScreenFlowDbContext>((sp, options) =>
+        {
+            var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName)
+                ?? throw new InvalidOperationException($"ConnectionStrings:{ConnectionStringName} is not configured.");
+            options.UseSqlServer(connectionString);
+        });
         return services;
     }
 }
