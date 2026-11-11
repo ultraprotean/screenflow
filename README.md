@@ -1,5 +1,7 @@
 # ScreenFlow
 
+[![CI](https://github.com/ultraprotean/screenflow/actions/workflows/ci.yml/badge.svg)](https://github.com/ultraprotean/screenflow/actions/workflows/ci.yml)
+
 A background-screening order pipeline in .NET 10: an employer orders a screening package for a candidate, the package expands into searches (criminal county, motor vehicle record, drug test, verifications), each search moves through a state machine, and every change is audited. Sensitive identifiers are encrypted at rest.
 
 All data is synthetic. This is a portfolio project, not affiliated with any screening company.
