@@ -30,7 +30,7 @@ public sealed class FieldEncryptor
         if (string.IsNullOrWhiteSpace(base64Key))
         {
             throw new InvalidOperationException(
-                "Encryption:Key is not configured. Set it with user-secrets locally or an environment variable in CI.");
+                "Encryption:Key is not configured. Set it with user-secrets locally (see README) or from a secrets manager in a deployment.");
         }
         return new FieldEncryptor(Convert.FromBase64String(base64Key.Trim()));
     }

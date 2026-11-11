@@ -11,7 +11,8 @@ namespace ScreenFlow.IntegrationTests;
 /// </summary>
 public sealed class DatabaseFixture : IAsyncLifetime
 {
-    // Test-only key. Real keys come from user-secrets or environment variables, never source.
+    // Public, test-only key: it encrypts synthetic data in throwaway databases. Real keys come from
+    // user-secrets locally or a secrets manager in a deployment, never from source.
     public const string TestEncryptionKey = "c2NyZWVuZmxvdy10ZXN0LWtleS0zMi1ieXRlcy1vayE=";
 
     private const string DefaultServer =

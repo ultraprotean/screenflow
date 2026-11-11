@@ -56,20 +56,20 @@ Validation errors add an `errors` object (field name → messages), as ASP.NET C
 
 ## 3. Sensitive data rules
 
-- **SSN** and **date of birth** are encrypted in the application with AES-256-GCM before they reach SQL Server (an EF Core value converter). Each value gets a random 96-bit nonce; the stored format is `nonce ‖ ciphertext ‖ tag`, `varbinary`. The key comes from configuration (`Encryption:Key`, base64, 32 bytes): user-secrets locally, an environment variable in CI, never the repository.
+- **SSN** and **date of birth** are encrypted in the application with AES-256-GCM before they reach SQL Server (an EF Core value converter). Each value gets a random 96-bit nonce; the stored format is `nonce ‖ ciphertext ‖ tag`, `varbinary`. The key comes from configuration (`Encryption:Key`, base64, 32 bytes). Locally it lives in user-secrets, outside the repository. Tests (locally and in CI) use a fixed, public test-only key that encrypts only synthetic data in throwaway databases. A deployment would load it from a secrets manager (AWS Secrets Manager, or a KMS-managed key); there is no deployed environment yet. A real key is never in the repository.
 - `SsnLast4` is stored in plain text so the API can display `***-**-1234` without decrypting.
 - The API **accepts** a full SSN and DOB on order creation and **never returns** either. Responses carry `ssnMasked` only.
 - Logs never contain SSN or DOB. Request bodies are not logged.
 - Test and seed data use SSNs in the 900–999 area range, which the Social Security Administration never issues.
 
-*Why application-level encryption rather than SQL Server Always Encrypted?* It works identically on LocalDB, in CI and in any cloud database, and it makes the key-handling boundary explicit in code. Always Encrypted is the production upgrade path (see `docs/decisions/`).
+*Why application-level encryption rather than SQL Server Always Encrypted?* It works identically on LocalDB, in CI and in any cloud database, and it makes the key-handling boundary explicit in code. Always Encrypted is the production upgrade path.
 
 ## 4. Data model (SQL Server, EF Core)
 
 | Table | Purpose | Key columns |
 |---|---|---|
 | `Clients` | Employers who order screenings | `Id`, `Name` (unique), `Industry`, `CreatedAt` |
-| `Packages` | Catalog of screening packages (seeded) | `Id`, `Code` (unique), `Name` |
+| `Packages` | Catalog of screening packages (seeded, read-only) | `Id`, `Code` (unique), `Name` |
 | `PackageSearchTypes` | Which search types a package contains | `PackageId`, `SearchType` (composite PK) |
 | `Candidates` | The person being screened | `Id`, `FirstName`, `LastName`, `Email`, `SsnEncrypted`, `SsnLast4`, `DateOfBirthEncrypted`, `State`, `County`, `CreatedAt` |
 | `Orders` | One screening request | `Id`, `ClientId`, `CandidateId`, `PackageId`, `ClientReference`, `Status`, `Result`, `SubmittedAt`, `CompletedAt`, `UpdatedAt`, `Version` |
@@ -88,9 +88,11 @@ Validation errors add an `errors` object (field name → messages), as ASP.NET C
 - `SearchType`: `CriminalCounty`, `CriminalFederal`, `MotorVehicleRecord`, `DrugTest`, `EmploymentVerification`, `EducationVerification`
 - `OrderStatus`: `Submitted`, `InProgress`, `ReadyForReview`, `Completed`, `Cancelled`
 - `SearchStatus`: `Pending`, `InProgress`, `Completed`, `Cancelled`
-- `Result`: `Clear`, `Consider` (FCRA vocabulary: "consider" means a finding the employer must review, not a failure)
+- `ScreeningResult`: `Clear`, `Consider` (FCRA vocabulary: "consider" means a finding the employer must review, not a failure). Stored in the `Result` columns and returned in the `result` fields.
 
 **Seeded packages**
+
+The package catalog is fixed reference data: it is inserted by the `InitialSchema` migration (`PackageCatalog.cs`, `HasData`) and no endpoint creates or changes it. Adding or changing a package means editing `PackageCatalog.cs` and adding a new migration. `Code` is unique in the database (`IX_Packages_Code`), because orders select a package by code.
 
 | Code | Name | Search types |
 |---|---|---|
@@ -135,7 +137,7 @@ Body `{ "name": string (1–200), "industry": Industry }` → `201` with the cli
 → `200` client, or `NOT_FOUND`.
 
 ### 6.4 `GET /api/v1/packages`
-→ `200` array of `{ "id", "code", "name", "searchTypes": [SearchType] }`.
+→ `200` array of `{ "id", "code", "name", "searchTypes": [SearchType] }`. Read-only: the catalog is seeded (§4), so there is no create or update endpoint.
 
 ### 6.5 `POST /api/v1/orders`
 ```json

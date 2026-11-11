@@ -31,7 +31,7 @@ When a decision changes the contract, update CONTRACT.md in the same commit.
 - Never update or delete `AuditEvents` rows.
 - Never edit a migration that has been committed; add a new one.
 - Never block on async code (`.Result`, `.Wait()`); pass `CancellationToken` through.
-- Never commit secrets. The encryption key lives in user-secrets locally and environment variables in CI.
+- Never commit secrets. The real encryption key lives in user-secrets locally (a deployment would use a secrets manager). The only key in the repository is the public test-only key in `DatabaseFixture`, which encrypts synthetic data in throwaway databases.
 - Never mock the database in integration tests: they run against real SQL Server.
 
 ## Layout
